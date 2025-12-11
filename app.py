@@ -1,43 +1,38 @@
 import streamlit as st
 from openai import OpenAI
 
-client = OpenAI()
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 st.title("🎙️ Speech to Text + Summary App")
 
-st.write("Upload an audio file, and the app will transcribe + summarize it.")
-
-audio_file = st.file_uploader("Upload audio", type=["mp3", "wav", "m4a"])
+audio_file = st.file_uploader("Upload an audio file (mp3, wav, m4a)", type=["mp3", "wav", "m4a"])
 
 if audio_file:
     st.audio(audio_file)
     
-    st.write(" Transcribing... please wait")
-
-    
-    transcription = client.audio.transcriptions.create(
-        model="whisper-1",
-        file=audio_file
-    )
+    with st.spinner("Transcribing..."):
+        transcription = client.audio.transcriptions.create(
+            model="whisper-1",
+            file=audio_file
+        )
 
     text = transcription.text
-    st.subheader("Transcription")
+    st.subheader(" Transcription")
     st.write(text)
 
     
-    st.subheader(" Summary")
-    summary_prompt = f"Summarize this text in simple terms:\n\n{text}"
+    with st.spinner("Summarizing..."):
+        summary = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "Summarize the text clearly."},
+                {"role": "user", "content": text}
+            ]
+        ).choices[0].message["content"]
 
-    summary = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "You summarize text clearly and simply."},
-            {"role": "user", "content": summary_prompt}
-        ]
-    ).choices[0].message["content"]
-
+    st.subheader("📌 Summary")
     st.write(summary)
 
     
-    st.download_button(" Download Transcription", text, file_name="transcription.txt")
-    st.download_button(" Download Summary", summary, file_name="summary.txt")
+    st.download_button("Download Transcription", text, "transcription.txt")
+    st.download_button("Download Summary", summary, "summary.txt")
