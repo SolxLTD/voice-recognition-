@@ -13,12 +13,12 @@ audio_file = st.file_uploader("Upload audio (mp3, wav, m4a)", type=["mp3", "wav"
 if audio_file:
     st.audio(audio_file)
 
-  
-    audio_bytes = audio_file.read()
-    audio_io = io.BytesIO(audio_bytes)
-    audio_io.name = audio_file.name   # must supply filename
-
     
+    audio_bytes = audio_file.read()
+
+    audio_io = io.BytesIO(audio_bytes)
+    audio_io.name = audio_file.name   
+
     with st.spinner("Transcribing..."):
         transcription = client.audio.transcriptions.create(
             model="whisper-1",
