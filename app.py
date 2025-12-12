@@ -1,65 +1,43 @@
 import streamlit as st
-import speech_recognition as sr
-from gtts import gTTS
-import os
-import tempfile
+from openai import OpenAI
 
 st.set_page_config(page_title="Speech Recognition App", page_icon="🎤")
-st.title("🎙️ Speech-to-Text App (Streamlit Cloud Compatible)")
 
-st.write("""
-Upload an audio file (wav or mp3), choose your language, and select the recognition API. 
-The app will transcribe your audio and allow you to save the transcription.
-""")
+st.title("🎙️ Speech-to-Text + Summary App")
 
-# --- Sidebar options ---
-st.sidebar.header("Settings")
-language = st.sidebar.selectbox(
-    "Choose Language", 
-    options=["en-US", "fr-FR", "es-ES", "de-DE", "pt-BR"]
-)
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-api_option = st.sidebar.selectbox(
-    "Choose API",
-    options=["Google Speech Recognition", "Sphinx (offline)"]
-)
+audio_file = st.file_uploader("Upload an audio file (mp3, wav, m4a)", type=["mp3", "wav", "m4a"])
 
-uploaded_file = st.file_uploader("Upload Audio File", type=["wav", "mp3"])
+if audio_file:
+    st.audio(audio_file)
 
-if uploaded_file:
-    st.audio(uploaded_file)
-    
-    # --- Transcription ---
-    r = sr.Recognizer()
-    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
-        tmp_file.write(uploaded_file.read())
-        tmp_filename = tmp_file.name
-
-    try:
-        with sr.AudioFile(tmp_filename) as source:
-            audio_data = r.record(source)
-            st.info("Transcribing...")
-            
-            if api_option == "Google Speech Recognition":
-                text = r.recognize_google(audio_data, language=language)
-            elif api_option == "Sphinx (offline)":
-                text = r.recognize_sphinx(audio_data)
-            else:
-                text = ""
-        
-        st.subheader("📝 Transcription")
-        st.write(text)
-
-        # --- Save transcription ---
-        st.download_button(
-            "⬇️ Download Transcription",
-            text,
-            file_name="transcription.txt"
+    # --- TRANSCRIBE ---
+    with st.spinner("Transcribing with Whisper..."):
+        transcription = client.audio.transcriptions.create(
+            model="whisper-1",
+            file=audio_file
         )
 
-    except sr.UnknownValueError:
-        st.error("⚠️ Could not understand the audio. Try again with clearer audio.")
-    except sr.RequestError as e:
-        st.error(f"⚠️ API request error: {e}")
-    finally:
-        os.remove(tmp_filename)
+    text = transcription.text
+    st.subheader("📝 Transcription")
+    st.write(text)
+
+    # --- SUMMARY ---
+    with st.spinner("Summarizing..."):
+        summary_resp = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "Summarize this text clearly."},
+                {"role": "user", "content": text}
+            ]
+        )
+
+    summary = summary_resp.choices[0].message["content"]
+
+    st.subheader("📌 Summary")
+    st.write(summary)
+
+    # --- DOWNLOAD BUTTONS ---
+    st.download_button("⬇️ Download Transcription", text, "transcription.txt")
+    st.download_button("⬇️ Download Summary", summary, "summary.txt")
